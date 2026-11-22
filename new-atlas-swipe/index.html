@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#111317">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<title>New Atlas Swipe</title>
+<style>
+:root{--bg:#111317;--card:#1c1f26;--fg:#f3f4f6;--mut:#9aa1ad;--red:#ef4444;--green:#22c55e;--acc:#f59e0b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;overscroll-behavior:none}
+header{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 12px) 16px 8px}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+header h1 span{color:var(--acc)}
+.count{font-size:13px;color:var(--mut)}
+.tabbtn{background:#262a33;border:0;color:var(--fg);border-radius:999px;padding:8px 14px;font-size:14px}
+#deck{position:relative;height:calc(100% - 170px - env(safe-area-inset-top) - env(safe-area-inset-bottom));margin:4px 14px}
+.card{position:absolute;inset:0;background:var(--card);border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-action:none;user-select:none;display:flex;flex-direction:column;will-change:transform}
+.card.behind{transform:scale(.95) translateY(12px);opacity:.7;pointer-events:none}
+.card .img{flex:0 0 58%;background:#2a2e37 center/cover no-repeat;position:relative;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:15px}
+.card .body{padding:14px 16px;flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px}
+.chip{align-self:flex-start;background:#2f3440;color:var(--acc);font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px}
+.card h2{font-size:20px;line-height:1.25;margin:0}
+.card p{font-size:14px;line-height:1.45;color:var(--mut);margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
+.hidecat{margin-top:auto;align-self:flex-start;background:none;border:1px solid #3a3f4b;color:var(--mut);border-radius:10px;padding:10px 12px;font-size:13px;min-height:44px}
+.stamp{position:absolute;top:24px;font-size:30px;font-weight:800;padding:4px 12px;border:4px solid;border-radius:10px;opacity:0;pointer-events:none}
+.stamp.hide{right:20px;color:var(--red);border-color:var(--red);transform:rotate(14deg)}
+.stamp.read{left:20px;color:var(--green);border-color:var(--green);transform:rotate(-14deg)}
+#controls{display:flex;justify-content:center;gap:22px;padding:14px 0 calc(env(safe-area-inset-bottom) + 14px)}
+#controls button{width:60px;height:60px;border-radius:50%;border:0;font-size:26px;background:#262a33;color:var(--fg)}
+#controls .no{color:var(--red)} #controls .yes{color:var(--green)} #controls .undo{width:48px;height:48px;align-self:center;font-size:20px;color:var(--acc)}
+#empty{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;color:var(--mut)}
+#empty h2{color:var(--fg);margin:0}
+#empty button{background:var(--acc);color:#111;border:0;border-radius:12px;padding:12px 18px;font-weight:700;font-size:15px}
+#saved{position:fixed;inset:0;background:var(--bg);transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;z-index:10}
+#saved.open{transform:none}
+#saved .list{overflow:auto;padding:0 14px 30px}
+.row{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #23262e;color:var(--fg);text-decoration:none}
+.row img{width:84px;height:60px;object-fit:cover;border-radius:10px;background:#2a2e37;flex:0 0 auto}
+.row span{font-size:14px;line-height:1.3;flex:1}
+.row button{background:none;border:0;color:var(--mut);font-size:20px;padding:8px}
+.muted{color:var(--mut);font-size:13px;padding:14px}
+.settings{padding:6px 14px;font-size:13px;color:var(--mut)}
+.settings button{background:#262a33;border:0;color:var(--fg);border-radius:8px;padding:6px 10px;margin:4px 4px 0 0;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>New <span>Atlas</span> Swipe</h1><div class="count" id="count"></div></div>
+  <button class="tabbtn" id="openSaved">♥ Saved</button>
+</header>
+<div id="deck">
+  <div id="empty"><h2>You're all caught up</h2><div id="emptyStats"></div><div>New stories arrive every morning.</div><button id="reset">Show hidden stories again</button></div>
+</div>
+<div id="controls">
+  <button class="no" id="bNo" aria-label="Hide">✕</button>
+  <button class="undo" id="bUndo" aria-label="Undo">↶</button>
+  <button class="yes" id="bYes" aria-label="Save">♥</button>
+</div>
+<div id="saved">
+  <header><h1>Saved</h1><button class="tabbtn" id="closeSaved">Back</button></header>
+  <div class="settings" id="cats"></div>
+  <div class="list" id="savedList"></div>
+</div>
+<script>
+const KEY='na-swipe-v1';
+let st={hidden:{},saved:[],cats:[]};
+try{st=Object.assign(st,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+let all=[],queue=[],history=[];
+const $=id=>document.getElementById(id);
+const label=c=>(c||'').replace(/-/g,' ').replace(/^./,m=>m.toUpperCase());
+const isSaved=l=>st.saved.some(s=>s.link===l);
+function build(){queue=all.filter(s=>!st.hidden[s.link]&&!isSaved(s.link)&&!st.cats.includes(s.cat));render()}
+function cardEl(s,top){
+  const c=document.createElement('div');c.className='card'+(top?'':' behind');
+  const img=document.createElement('div');img.className='img';
+  if(s.img){const i=new Image();i.onload=()=>img.style.backgroundImage=`url("${s.img}")`;i.onerror=()=>img.textContent=label(s.cat);i.src=s.img}else img.textContent=label(s.cat);
+  img.innerHTML+='<div class="stamp hide">HIDE</div><div class="stamp read">SAVE</div>';
+  const n=all.filter(x=>x.cat===s.cat&&queue.includes(x)).length;
+  const b=document.createElement('div');b.className='body';
+  b.innerHTML=`<span class="chip"></span><h2></h2><p></p>`;
+  b.querySelector('.chip').textContent=label(s.cat);b.querySelector('h2').textContent=s.title;b.querySelector('p').textContent=s.desc;
+  const hb=document.createElement('button');hb.className='hidecat';hb.textContent=`Hide all ${label(s.cat)} (${n})`;
+  hb.addEventListener('pointerdown',e=>e.stopPropagation());
+  hb.addEventListener('click',e=>{e.stopPropagation();hideCat(s.cat)});
+  b.appendChild(hb);c.append(img,b);return c;
+}
+function render(){
+  document.querySelectorAll('#deck .card').forEach(e=>e.remove());
+  $('count').textContent=queue.length?`${queue.length} stories left`:'';
+  $('empty').style.display=queue.length?'none':'flex';
+  $('emptyStats').textContent=`${st.saved.length} saved · ${Object.keys(st.hidden).length} hidden`;
+  if(queue[1])$('deck').appendChild(cardEl(queue[1],false));
+  if(queue[0]){const c=cardEl(queue[0],true);$('deck').appendChild(c);drag(c,queue[0])}
+  [2,3].forEach(i=>{if(queue[i]&&queue[i].img)new Image().src=queue[i].img});
+}
+function drag(c,s){
+  let x0=0,y0=0,dx=0,dy=0,down=false,moved=false;
+  const hs=c.querySelector('.stamp.hide'),rs=c.querySelector('.stamp.read');
+  c.addEventListener('pointerdown',e=>{down=true;moved=false;x0=e.clientX;y0=e.clientY;dx=dy=0;c.setPointerCapture(e.pointerId);c.style.transition='none'});
+  c.addEventListener('pointermove',e=>{if(!down)return;dx=e.clientX-x0;dy=e.clientY-y0;if(Math.abs(dx)>6||Math.abs(dy)>6)moved=true;
+    c.style.transform=`translate(${dx}px,${dy*.3}px) rotate(${dx/18}deg)`;hs.style.opacity=Math.max(0,-dx/100);rs.style.opacity=Math.max(0,dx/100)});
+  const end=()=>{if(!down)return;down=false;
+    if(!moved){c.style.transform='';window.open(s.link,'_blank');return}
+    if(dx<-100)fly(c,-1,s);else if(dx>100)fly(c,1,s);
+    else{c.style.transition='transform .25s';c.style.transform='';hs.style.opacity=rs.style.opacity=0}};
+  c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+}
+function fly(c,dir,s){
+  c.style.pointerEvents='none';c.style.transition='transform .3s ease-in';
+  c.style.transform=`translate(${dir*window.innerWidth*1.3}px,40px) rotate(${dir*30}deg)`;
+  if(dir<0)st.hidden[s.link]=Date.now();else st.saved.unshift({link:s.link,title:s.title,img:s.img,t:Date.now()});
+  history.push({s,dir});save();queue.shift();setTimeout(render,250);
+}
+function act(dir){const c=document.querySelector('#deck .card:not(.behind)');if(c&&queue[0])fly(c,dir,queue[0])}
+function hideCat(cat){if(!st.cats.includes(cat))st.cats.push(cat);history.push({cat});save();build();renderSaved()}
+function undo(){const h=history.pop();if(!h)return;
+  if(h.cat){st.cats=st.cats.filter(c=>c!==h.cat)}
+  else if(h.dir<0)delete st.hidden[h.s.link];else st.saved=st.saved.filter(x=>x.link!==h.s.link);
+  save();build();renderSaved()}
+function renderSaved(){
+  const L=$('savedList');L.innerHTML='';
+  if(!st.saved.length)L.innerHTML='<div class="muted">Swipe right on a story to save it here.</div>';
+  st.saved.forEach(s=>{const a=document.createElement('a');a.className='row';a.href=s.link;a.target='_blank';a.rel='noopener';
+    a.innerHTML='<img alt=""><span></span><button aria-label="Remove">✕</button>';
+    if(s.img)a.querySelector('img').src=s.img;a.querySelector('span').textContent=s.title;
+    a.querySelector('button').onclick=e=>{e.preventDefault();st.saved=st.saved.filter(x=>x.link!==s.link);save();renderSaved()};L.appendChild(a)});
+  const C=$('cats');C.innerHTML=st.cats.length?'Hidden categories (tap to show again):<br>':'';
+  st.cats.forEach(c=>{const b=document.createElement('button');b.textContent=label(c)+' ✕';b.onclick=()=>{st.cats=st.cats.filter(x=>x!==c);save();build();renderSaved()};C.appendChild(b)});
+}
+$('bNo').onclick=()=>act(-1);$('bYes').onclick=()=>act(1);$('bUndo').onclick=undo;
+$('openSaved').onclick=()=>{renderSaved();$('saved').classList.add('open')};$('closeSaved').onclick=()=>$('saved').classList.remove('open');
+$('reset').onclick=()=>{st.hidden={};st.cats=[];save();build()};
+fetch('stories.json?'+Date.now()).then(r=>r.json()).then(d=>{all=d;
+  const live=new Set(d.map(s=>s.link));const wk=Date.now()-30*864e5;
+  for(const k in st.hidden)if(!live.has(k)&&st.hidden[k]<wk)delete st.hidden[k];save();build()})
+ .catch(()=>{$('count').textContent='Could not load stories'});
+</script>
+</body>
+</html>
