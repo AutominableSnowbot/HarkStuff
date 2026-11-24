@@ -81,7 +81,7 @@ function cardEl(s,top){
   const img=document.createElement('div');img.className='img';
   if(s.img){const i=new Image();i.onload=()=>img.style.backgroundImage=`url("${s.img}")`;i.onerror=()=>img.textContent=label(s.cat);i.src=s.img}else img.textContent=label(s.cat);
   img.innerHTML+='<div class="stamp hide">HIDE</div><div class="stamp read">SAVE</div>';
-  const n=all.filter(x=>x.cat===s.cat&&queue.includes(x)).length;
+  const n=queue.filter(x=>x.cat===s.cat).length;
   const b=document.createElement('div');b.className='body';
   b.innerHTML=`<span class="chip"></span><h2></h2><p></p>`;
   b.querySelector('.chip').textContent=label(s.cat);b.querySelector('h2').textContent=s.title;b.querySelector('p').textContent=s.desc;
@@ -136,7 +136,9 @@ function renderSaved(){
 $('bNo').onclick=()=>act(-1);$('bYes').onclick=()=>act(1);$('bUndo').onclick=undo;
 $('openSaved').onclick=()=>{renderSaved();$('saved').classList.add('open')};$('closeSaved').onclick=()=>$('saved').classList.remove('open');
 $('reset').onclick=()=>{st.hidden={};st.cats=[];save();build()};
-fetch('stories.json?'+Date.now()).then(r=>r.json()).then(d=>{all=d;
+const norm=l=>(l||'').split('?')[0];
+Promise.all([fetch('stories.json?'+Date.now()).then(r=>r.json()),fetch('backlog.json?'+Date.now()).then(r=>r.ok?r.json():[]).catch(()=>[])]).then(([fresh,old])=>{
+  const seen=new Set(fresh.map(s=>norm(s.link)));const d=fresh.concat(old.filter(s=>!seen.has(norm(s.link))));all=d;
   const live=new Set(d.map(s=>s.link));const wk=Date.now()-30*864e5;
   for(const k in st.hidden)if(!live.has(k)&&st.hidden[k]<wk)delete st.hidden[k];save();build()})
  .catch(()=>{$('count').textContent='Could not load stories'});
